@@ -15,6 +15,15 @@
 
 #define ALOGE(...) __libc_format_log(6, "Tiramisu-DEBUG", __VA_ARGS__)
 
+extern "C" int __openat(int, const char*, int, int);
+
+static inline int force_O_LARGEFILE(int flags) {
+#if __LP64__
+  return flags; // No need, and aarch64's strace gets confused.
+#else
+  return flags | O_LARGEFILE;
+#endif
+}
 
 struct LibcOpenedFile {
 	char original_filename[LIBC_MAX_FILE_PATH_SIZE];
@@ -30,10 +39,12 @@ struct LibcDirectoryInfo {
 //XXX: TODO Make thread safe update to the data structure.
 struct LibcIncognitoState {
 	LibcOpenedFile *opened_files;	
+	LibcOpenedFile *dummy_files;
 	LibcDirectoryInfo *opened_dirs;
 	int opened_files_cnt;
 	int opened_dirs_cnt;
 	int total_files_cnt;
+	int dummy_files_cnt;
 };
 
 struct LibcIncognitoState *libc_incognito_state = NULL;
@@ -79,6 +90,16 @@ int remove_all_incognito_files() {
 			break;
 		}
 	}
+
+	for (i = 0; i < libc_incognito_state->dummy_files_cnt; i++) {
+		struct LibcOpenedFile *file = &libc_incognito_state->dummy_files[i];
+		ALOGE("Removing dummy file %s", file->original_filename);
+		rc = remove_file(file->original_filename);
+		if (rc) {
+			break;
+		}
+	}
+	
 	return rc;
 }
 
@@ -109,18 +130,25 @@ int libc_incognito_io_init() {
 	}
 
 	//libc_incognito_state->opened_files = new LibcOpenedFile[LIBC_MAX_FILES_PER_PROCESS]();
+	libc_incognito_state->dummy_files = reinterpret_cast<LibcOpenedFile *>(
+		malloc(LIBC_MAX_FILES_PER_PROCESS * sizeof(LibcOpenedFile)));
+	if (libc_incognito_state->dummy_files == NULL) {
+		ALOGE("Tiramisu-DEBUG: Nomem-2");
+		free(libc_incognito_state);
+		return ENOMEM;
+	}
 
 	// Allocate memory.
 	libc_incognito_state->opened_files = reinterpret_cast<LibcOpenedFile *>(
 		malloc(LIBC_MAX_FILES_PER_PROCESS * sizeof(LibcOpenedFile)));
 	if (libc_incognito_state->opened_files == NULL) {
 		ALOGE("Tiramisu-DEBUG: Nomem-2");
+		free(libc_incognito_state->dummy_files);
 		free(libc_incognito_state);
 		return ENOMEM;
 	}
 	libc_incognito_state->opened_dirs = reinterpret_cast<LibcDirectoryInfo *>(
 		malloc(LIBC_MAX_FILES_PER_PROCESS * sizeof(LibcDirectoryInfo)));
-	//libc_incognito_state->opened_dirs = new LibcDirectoryInfo[LIBC_MAX_FILES_PER_PROCESS]();
 	if (libc_incognito_state->opened_dirs == NULL) {
 		free(libc_incognito_state->opened_files);
 		free(libc_incognito_state);
@@ -129,6 +157,7 @@ int libc_incognito_io_init() {
 	libc_incognito_state->total_files_cnt = LIBC_MAX_FILES_PER_PROCESS;
 	libc_incognito_state->opened_files_cnt = 0;
 	libc_incognito_state->opened_dirs_cnt = 0;
+	libc_incognito_state->dummy_files_cnt = 0;
 	libc_incognito_mode = true;
 	ALOGE("Tiramisu-debug: Incognito state init successful");
     return 0;
@@ -142,15 +171,17 @@ void libc_incognito_io_stop() {
 
 	ALOGE("Tiramisu stop: number of files %d", libc_incognito_state->opened_files_cnt);
 
+	libc_incognito_mode = false;
 	remove_all_incognito_files();
 	remove_all_directory();
+	free(libc_incognito_state->dummy_files);
 	free(libc_incognito_state->opened_files);
 	free(libc_incognito_state->opened_dirs);
 	libc_incognito_state->opened_files = NULL;
 	libc_incognito_state->opened_files_cnt = 0;
+	libc_incognito_state->dummy_files_cnt = 0;
 	libc_incognito_state->opened_dirs_cnt = 0;
 	free(libc_incognito_state);
-	libc_incognito_mode = false;
 	ALOGE("Tiramisu: Incognito state deinit successful");
 	return;
 }
@@ -397,6 +428,33 @@ int libc_add_file_entry(const char *original_filename, const char *new_filename,
 	return 0;
 }
 
+void add_dummy_file_entry(const char *pathname) {
+	pthread_mutex_lock(&libc_lock);
+	struct LibcOpenedFile *file = &libc_incognito_state->dummy_files[libc_incognito_state->dummy_files_cnt];
+	strcpy(file->original_filename, pathname);
+	libc_incognito_state->dummy_files_cnt++;
+	pthread_mutex_unlock(&libc_lock);
+	
+}
+
+void creat_dummy_file(const char *pathname) {
+	int flags = O_CREAT|O_RDWR;
+    int fd = __openat(AT_FDCWD, pathname, force_O_LARGEFILE(flags), 
+        			S_IRUSR|S_IWUSR|S_IXUSR|S_IRGRP|S_IWGRP|S_IXGRP|S_IROTH|S_IWOTH|S_IXOTH);
+	if (fd < 0) {
+		ALOGE("Tiramisu: Could not create a dummy file");
+		return;
+	}
+
+	write(fd, "Dummy", 5);
+	close(fd);
+
+	ALOGE("Creating a dummy file %s", pathname);
+
+	add_dummy_file_entry(pathname);
+	return;
+}
+
 int libc_incognito_file_open(const char *pathname, int flags, int *path_set,
 						char *incognito_file_path, int incog_pathname_sz,
 						int *add_entry, int *update_entry) {
@@ -466,6 +524,8 @@ int libc_incognito_file_open(const char *pathname, int flags, int *path_set,
 			ALOGE("Tiramisu: errno is not ENOENT %s\n", pathname);
 			return EINVAL;
 		}
+
+		creat_dummy_file(pathname);
     } else {
 		// Make a copy of the file.
 		rc = make_file_copy(pathname, incognito_file_path);

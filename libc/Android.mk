@@ -978,7 +978,7 @@ LOCAL_CFLAGS := $(libc_common_cflags) \
 
 LOCAL_CONLYFLAGS := $(libc_common_conlyflags)
 LOCAL_CPPFLAGS := $(libc_common_cppflags) -Wold-style-cast
-LOCAL_C_INCLUDES := $(libc_common_c_includes) bionic/libstdc++/include
+LOCAL_C_INCLUDES := $(libc_common_c_includes) bionic/libstdc++/include bionic/libc/tiramisu_include
 LOCAL_MODULE := libc_bionic_ndk
 LOCAL_CLANG := $(use_clang)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(libc_common_additional_dependencies)
@@ -1131,7 +1131,7 @@ LOCAL_ASFLAGS := $(LOCAL_CFLAGS)
 LOCAL_CONLYFLAGS := $(libc_common_conlyflags)
 LOCAL_CFLAGS := $(libc_common_cflags) -fvisibility=hidden -O0
 LOCAL_CPPFLAGS := $(libc_common_cppflags)
-LOCAL_C_INCLUDES := $(libc_common_c_includes)
+LOCAL_C_INCLUDES := $(libc_common_c_includes) 
 LOCAL_ADDRESS_SANITIZER := false
 LOCAL_NATIVE_COVERAGE := $(bionic_coverage)
 LOCAL_SYSTEM_SHARED_LIBRARIES :=
@@ -1188,7 +1188,7 @@ LOCAL_SRC_FILES := $(libc_common_src_files)
 LOCAL_CFLAGS := $(libc_common_cflags)
 LOCAL_CONLYFLAGS := $(libc_common_conlyflags)
 LOCAL_CPPFLAGS := $(libc_common_cppflags)
-LOCAL_C_INCLUDES := $(libc_common_c_includes)
+LOCAL_C_INCLUDES := $(libc_common_c_includes) 
 LOCAL_MODULE := libc_common
 LOCAL_CLANG := $(use_clang)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(libc_common_additional_dependencies)

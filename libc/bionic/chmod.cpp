@@ -30,7 +30,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include "private/libc_logging.h"
-#include <libc_incognito_io.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
