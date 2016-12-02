@@ -29,7 +29,38 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include "private/libc_logging.h"
+#include <libc_incognito_io.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
+#include "../tiramisu_include/libc_incognito_io.h"
+
+#define ALOGE(...) __libc_format_log(6, "Tiramisu-DEBUG", __VA_ARGS__)
+
+//extern bool libc_check_incognito_mode();
 int chmod(const char* path, mode_t mode) {
+
+	ALOGE("Posix_chmod: %s", path);
+	if(libc_check_incognito_mode()) { 
+		Libc_File_Status status;
+		char *file_path = reinterpret_cast<char*>(malloc(LIBC_MAX_FILE_PATH_SIZE));
+		if (file_path == NULL) {
+			ALOGE("Tiramisu DEBUG: no mem");
+			return ENOMEM;
+		}
+
+		memset(file_path, 0, 4096);
+		if (libc_lookup_filename(path, file_path,
+							4096, &status)) {
+			const char *incognito_file_path = reinterpret_cast<const char*>(file_path);
+			ALOGE("Tiramisu: DEBUG: chmod is getting called for %s", file_path);
+  			int rc = fchmodat(AT_FDCWD, incognito_file_path, mode, 0);
+			free(file_path);
+			return rc;
+		}
+		free(file_path);
+	}
   return fchmodat(AT_FDCWD, path, mode, 0);
 }

@@ -28,7 +28,40 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include "private/libc_logging.h"
+#include <libc_incognito_io.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "../tiramisu_include/libc_incognito_io.h"
+
+#define ALOGE(...) __libc_format_log(6, "Tiramisu-DEBUG", __VA_ARGS__)
 
 int unlink(const char* path) {
+
+	ALOGE("Tiramisu: Delete: unlink called for %s mode %d", path, libc_check_incognito_mode());
+
+	if (libc_check_incognito_mode() &&
+		(strstr(path, "INCOGNITO_TIRAMISU") == NULL) &&
+		(strstr(path, "/data/user") != NULL)) {
+		char *incognito_pathname = reinterpret_cast<char*>(malloc(LIBC_MAX_FILE_PATH_SIZE));
+		bool need_remove = false;
+	
+		memset(incognito_pathname, 0, LIBC_MAX_FILE_PATH_SIZE);
+		if (libc_add_or_update_file_delete_entry(path, &need_remove,
+										    incognito_pathname, LIBC_MAX_FILE_PATH_SIZE)) {
+			ALOGE("Tiramisu: Remove system call failed for %s", path);
+			// Throw error if there is an error in processing the system call.
+			return -1;
+    	} 
+
+		ALOGE("Tiramisu: need_remove=%d path=%s incog_path=%s", need_remove, path, incognito_pathname);
+
+		if (!need_remove) {
+			return 0;
+		}
+
+  		return unlinkat(AT_FDCWD, incognito_pathname, 0);
+	}
   return unlinkat(AT_FDCWD, path, 0);
 }

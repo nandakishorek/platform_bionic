@@ -162,6 +162,7 @@ libc_bionic_ndk_src_files := \
     bionic/mknod.cpp \
     bionic/mntent.cpp \
     bionic/NetdClientDispatch.cpp \
+	bionic/libc_incognito_io.cpp \
     bionic/open.cpp \
     bionic/pathconf.cpp \
     bionic/pause.cpp \

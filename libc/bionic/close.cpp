@@ -28,10 +28,21 @@
 
 #include <errno.h>
 #include <unistd.h>
+#include "../tiramisu_include/libc_incognito_io.h"
 
 extern "C" int ___close(int);
 
+static int stop_incognito_mode(int fd) {
+	if (fd == -5555) {
+		libc_incognito_io_stop();
+		return 1;
+	}
+	return 0;
+}
+
+
 int close(int fd) {
+  if (stop_incognito_mode(fd)) return 0;
   int rc = ___close(fd);
   if (rc == -1 && errno == EINTR) {
     // POSIX says that if close returns with EINTR, the fd must not be closed.
