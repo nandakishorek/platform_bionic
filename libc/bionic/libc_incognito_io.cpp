@@ -327,7 +327,7 @@ int make_file_copy(const char *original_filename, char *new_filename) {
 
 	ALOGE("Tiramisu: Triggering a copy");
 
-    orig_file_fd = open(original_filename, O_RDONLY);
+    orig_file_fd = __openat(AT_FDCWD, original_filename, force_O_LARGEFILE(O_RDONLY), 0);
     if (orig_file_fd< 0) {
         ALOGE("Tiramisu: Error: File open failed: %s \n", original_filename);
         return errno;
