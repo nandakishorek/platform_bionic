@@ -478,8 +478,15 @@ int libc_incognito_file_open(const char *pathname, int flags, int *path_set,
 		return ENOMEM;
 	} 
 
-	if ((pathname != strstr(pathname, "/data/") ) ||
-		(strstr(pathname, "INCOGNITO_TIRAMISU") != NULL)){
+	// Allow incognito mode only for files created in /data and /storage/emulated
+	// directory.
+	if ((pathname != strstr(pathname, "/data/") ) && 
+		(pathname != strstr(pathname, "/storage/emulated"))) {
+		return 0;
+	}
+
+	// If the file was created by incognito mode, then we don't need to do anything.
+	if (strstr(pathname, "INCOGNITO_TIRAMISU") != NULL){
 		return 0;
 	}
 
@@ -561,6 +568,9 @@ int libc_incognito_file_open(const char *pathname, int flags, int *path_set,
 		}
 	}
 
+	// A dummy file should be created, because remove() does not call unlink system
+	// call if the file does not exist. We handle incognito file diversion at unlink
+	// system call.
 	if (should_create_dummy_file) {
 		creat_dummy_file(pathname);
 	}
