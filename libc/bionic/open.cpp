@@ -89,8 +89,8 @@ int open(const char* pathname, int flags, ...) {
 		memset(incognito_file_path, 0, 4096);
 		libc_incognito_file_open(pathname, flags, &path_set, incognito_file_path,
 						 	LIBC_MAX_FILE_PATH_SIZE, &add_entry, &update_entry);
-		ALOGE("pathname 1 %s new pathname %s add_entry %d update_entry %d \n",
-			pathname, incognito_file_path, add_entry, update_entry);
+		ALOGE("pathname 1 %s new pathname %s add_entry %d update_entry %d  path_set=%d\n",
+			pathname, incognito_file_path, add_entry, update_entry, path_set);
 		#if 1
 		if (path_set) {
     		int fd = __openat(AT_FDCWD, incognito_file_path, force_O_LARGEFILE(flags), mode);

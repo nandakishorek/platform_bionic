@@ -30,8 +30,34 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <malloc.h>
+#include <string.h>
+#include <stdlib.h>
+#include <errno.h>
 
+#include "private/libc_logging.h"
+#include "../tiramisu_include/libc_incognito_io.h"
+#define ALOGE(...) __libc_format_log(6, "Tiramisu-DEBUG", __VA_ARGS__)
 int stat(const char* path, struct stat* sb) {
+	if(libc_check_incognito_mode()) { 
+		Libc_File_Status status;
+
+		char *file_path = reinterpret_cast<char*>(malloc(LIBC_MAX_FILE_PATH_SIZE));
+		if (file_path == NULL) {
+			ALOGE("Tiramisu DEBUG: no mem");
+			return ENOMEM;
+		}
+
+		memset(file_path, 0, 4096);
+		if (libc_lookup_filename(path, file_path,
+							4096, &status)) {
+			const char *incognito_file_path = reinterpret_cast<const char*>(file_path);
+			int rc = fstatat(AT_FDCWD, incognito_file_path, sb, 0);
+			free(file_path);
+			return rc;
+		}
+		free(file_path);
+	}
   return fstatat(AT_FDCWD, path, sb, 0);
 }
 __strong_alias(stat64, stat);

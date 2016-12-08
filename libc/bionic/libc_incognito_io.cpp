@@ -66,7 +66,7 @@ bool libc2_check_incognito_mode() {
 int remove_file(char *pathname) {
 	int rc;
 
-	rc = remove(pathname);
+	rc = unlinkat(AT_FDCWD, pathname, 0);
 	if (rc) {
 		ALOGE("Tiramisu Error: could not delete the file: errno=%d", errno);
 		return errno;
@@ -81,13 +81,14 @@ int remove_all_incognito_files() {
 	ALOGE("Tiramisu: Error : Removing all files %d", libc_incognito_state->opened_files_cnt); 
 	for (i = 0; i < libc_incognito_state->opened_files_cnt; i++) {
 		struct LibcOpenedFile *file = &libc_incognito_state->opened_files[i];
-		ALOGE("Tiramisu: Error: deleting file %s %d\n", file->incog_filename, file->status);
+		ALOGE("Tiramisu: Deleting file %s %d\n", file->incog_filename, file->status);
 		if (file->status == INCOGNITO_DELETED) {
+			ALOGE("Tiramisu: file status for %s is deleted\n", file->original_filename);
 			continue;
 		}
 		rc = remove_file(file->incog_filename);
 		if (rc) {
-			break;
+			ALOGE("Tiramisu: file delete failed %s\n", file->incog_filename);
 		}
 	}
 
@@ -96,7 +97,7 @@ int remove_all_incognito_files() {
 		ALOGE("Removing dummy file %s", file->original_filename);
 		rc = remove_file(file->original_filename);
 		if (rc) {
-			break;
+			ALOGE("Tiramisu: dummy file delete failed %s\n", file->original_filename);
 		}
 	}
 	
@@ -495,6 +496,12 @@ int libc_incognito_file_open(const char *pathname, int flags, int *path_set,
 	}
 	*path_set = 1;
 
+	if (flags & O_CREAT) {
+		creat_dummy_file(pathname);
+		*add_entry = 1;
+		return 0;
+	}
+
 	ALOGE("Incognito: DEBUG: pathname %s incognito filename %s\n",
 						pathname, incognito_file_path);
 
@@ -519,7 +526,7 @@ int libc_incognito_file_open(const char *pathname, int flags, int *path_set,
 
 	
 	struct stat file_stat;
-    if ((flags & O_TRUNC) && (stat(pathname, &file_stat) != 0)) {
+    if ((flags & O_TRUNC) && (fstatat(AT_FDCWD, pathname, &file_stat, 0) != 0)) {
         if (errno != ENOENT) {
 			ALOGE("Tiramisu: errno is not ENOENT %s\n", pathname);
 			return EINVAL;
@@ -530,8 +537,8 @@ int libc_incognito_file_open(const char *pathname, int flags, int *path_set,
 		// Make a copy of the file.
 		rc = make_file_copy(pathname, incognito_file_path);
 		struct stat file_stat1, file_stat2;
-		stat(pathname, &file_stat1);
-		stat(incognito_file_path, &file_stat2);
+		fstatat(AT_FDCWD, pathname, &file_stat1, 0);
+		fstatat(AT_FDCWD, incognito_file_path, &file_stat2, 0);
 		ALOGE("Tiramisu: after copy: size1 %d size %d",
 				static_cast<int>(file_stat1.st_size),
 				static_cast<int>(file_stat2.st_size));
@@ -655,7 +662,6 @@ int libc_add_or_update_file_delete_entry(const char *pathname, bool *need_delete
 			file->status = INCOGNITO_DELETED;
 			*need_delete = true;
 			strcpy(new_filename, file->incog_filename);
-			break;
 		}
 	}
 
