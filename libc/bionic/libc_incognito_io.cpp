@@ -439,6 +439,12 @@ void add_dummy_file_entry(const char *pathname) {
 }
 
 void creat_dummy_file(const char *pathname) {
+	struct stat file_stat1;
+	if (fstatat(AT_FDCWD, pathname, &file_stat1, 0) == 0) {
+		ALOGE("Tiramisu: Original file already exists");
+		return;
+	}
+	
 	int flags = O_CREAT|O_RDWR;
     int fd = __openat(AT_FDCWD, pathname, force_O_LARGEFILE(flags), 
         			S_IRUSR|S_IWUSR|S_IXUSR|S_IRGRP|S_IWGRP|S_IXGRP|S_IROTH|S_IWOTH|S_IXOTH);
@@ -496,11 +502,13 @@ int libc_incognito_file_open(const char *pathname, int flags, int *path_set,
 	}
 	*path_set = 1;
 
+/*
 	if (flags & O_CREAT) {
 		creat_dummy_file(pathname);
 		*add_entry = 1;
 		return 0;
 	}
+*/
 
 	ALOGE("Incognito: DEBUG: pathname %s incognito filename %s\n",
 						pathname, incognito_file_path);
@@ -518,30 +526,43 @@ int libc_incognito_file_open(const char *pathname, int flags, int *path_set,
 		return 0;
 	}
 
+/*
 	// If it's not append or truncate, return.
 	if (!((flags & O_APPEND) || (flags & O_TRUNC))) {
 		ALOGE("Incognito: DEBUG: No append or trunc %s ", pathname);
 		return 0;
 	}
+*/
 
 	
 	struct stat file_stat;
-    if ((flags & O_TRUNC) && (fstatat(AT_FDCWD, pathname, &file_stat, 0) != 0)) {
+	bool should_create_dummy_file = false;
+    if ((flags & O_CREAT) && (fstatat(AT_FDCWD, pathname, &file_stat, 0) != 0)) {
+		// Creating a new file
         if (errno != ENOENT) {
 			ALOGE("Tiramisu: errno is not ENOENT %s\n", pathname);
 			return EINVAL;
 		}
 
-		creat_dummy_file(pathname);
+		
+		should_create_dummy_file = true;
     } else {
-		// Make a copy of the file.
-		rc = make_file_copy(pathname, incognito_file_path);
-		struct stat file_stat1, file_stat2;
-		fstatat(AT_FDCWD, pathname, &file_stat1, 0);
-		fstatat(AT_FDCWD, incognito_file_path, &file_stat2, 0);
-		ALOGE("Tiramisu: after copy: size1 %d size %d",
-				static_cast<int>(file_stat1.st_size),
-				static_cast<int>(file_stat2.st_size));
+		if (!(flags & O_TRUNC)) {
+			// Make a copy of the file.
+			rc = make_file_copy(pathname, incognito_file_path);
+			struct stat file_stat1, file_stat2;
+			fstatat(AT_FDCWD, pathname, &file_stat1, 0);
+			fstatat(AT_FDCWD, incognito_file_path, &file_stat2, 0);
+			ALOGE("Tiramisu: after copy: size1 %d size %d",
+					static_cast<int>(file_stat1.st_size),
+					static_cast<int>(file_stat2.st_size));
+		} else {
+			should_create_dummy_file = true;
+		}
+	}
+
+	if (should_create_dummy_file) {
+		creat_dummy_file(pathname);
 	}
 #if 0
 	ALOGE("Incognito: DEBUG: calling stat for %s ", pathname);
