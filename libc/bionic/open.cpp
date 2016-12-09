@@ -56,7 +56,7 @@ int creat(const char* pathname, mode_t mode) {
 __strong_alias(creat64, creat);
 
 int init_incognito_mode(const char *pathname) {
-	if (strcmp(pathname, "mahesh_kishore_vardhana_vandana_sammok") == 0) {
+	if (strcmp(pathname, "CSE622_TEAM_TIRAMISU_INCOGNITO_MODE_INIT") == 0) {
 		libc_incognito_io_init();
 		return 1;
 	}
